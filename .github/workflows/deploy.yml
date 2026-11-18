@@ -19,9 +19,15 @@ env:
   EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
   ARTIFACT_KEY: campushub-backend/${{ github.sha }}.jar
   # Non-secret app settings, written to /opt/campushub/app.env on every deploy.
-  # Change them in Settings -> Secrets and variables -> Actions -> Variables (true/false).
+  # Change them in Settings -> Secrets and variables -> Actions -> Variables.
   DEMO_DATA: ${{ vars.CAMPUSHUB_DEMO_DATA || 'true' }}
   COOKIE_SECURE: ${{ vars.CAMPUSHUB_COOKIE_SECURE || 'false' }}
+  # Database: H2 file on the instance by default. For e.g. AWS RDS PostgreSQL set CAMPUSHUB_DB_URL
+  # (jdbc:postgresql://<endpoint>:5432/campushub), CAMPUSHUB_DB_USERNAME, and CAMPUSHUB_DB_PASSWORD_PARAMETER:
+  # the name of an SSM Parameter Store SecureString that the instance reads itself (see README "Database").
+  DB_URL: ${{ vars.CAMPUSHUB_DB_URL || 'jdbc:h2:file:/opt/campushub/data/campushub;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH' }}
+  DB_USERNAME: ${{ vars.CAMPUSHUB_DB_USERNAME || 'sa' }}
+  DB_PASSWORD_PARAMETER: ${{ vars.CAMPUSHUB_DB_PASSWORD_PARAMETER }}
 
 jobs:
   deploy:
@@ -53,10 +59,15 @@ jobs:
 
       - name: Deploy on EC2 via SSM Run Command
         run: |
-          # The settings end up inside a shell script: accept only true/false.
-          for v in "$DEMO_DATA" "$COOKIE_SECURE"; do
-            case "$v" in true|false) ;; *) echo "CAMPUSHUB_* variables must be true or false, got: $v"; exit 1 ;; esac
+          # The settings end up inside a shell script: only accept safe characters.
+          fail() { echo "Invalid GitHub variable $1: $2"; exit 1; }
+          for v in DEMO_DATA COOKIE_SECURE; do
+            case "${!v}" in true|false) ;; *) fail "CAMPUSHUB_$v" "must be true or false" ;; esac
           done
+          [[ "$DB_URL" =~ ^jdbc:[A-Za-z0-9:/._\;=@?\&%+,-]+$ ]] || fail CAMPUSHUB_DB_URL "must be a jdbc: URL without quotes, spaces or \$"
+          [[ "$DB_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]] || fail CAMPUSHUB_DB_USERNAME "letters, digits, _ . - only"
+          [[ -z "$DB_PASSWORD_PARAMETER" || "$DB_PASSWORD_PARAMETER" =~ ^/?[A-Za-z0-9_./-]+$ ]] \
+            || fail CAMPUSHUB_DB_PASSWORD_PARAMETER "must be an SSM parameter name like /campushub/db-password"
 
           # Script executed on the instance as root.
           cat > remote.sh <<EOF
@@ -65,16 +76,29 @@ jobs:
           # --- App settings in /opt/campushub/app.env (read by systemd) ---
           ENV=/opt/campushub/app.env
           touch "\$ENV" && chmod 600 "\$ENV"
+          # put KEY VALUE: replace the line for KEY (values managed by this workflow).
+          put() { sed -i "/^\$1=/d" "\$ENV"; printf '%s=%s\n' "\$1" "\$2" >> "\$ENV"; }
+
           # Access-token signing key: generated once ON the instance, so it never travels through
           # GitHub or the SSM command history. Kept on later deploys (a new key would log everyone out).
           grep -q '^CAMPUSHUB_JWT_SECRET=' "\$ENV" || echo "CAMPUSHUB_JWT_SECRET=\$(openssl rand -base64 48)" >> "\$ENV"
-          grep -q '^CAMPUSHUB_DB_URL=' "\$ENV" || echo 'CAMPUSHUB_DB_URL=jdbc:h2:file:/opt/campushub/data/campushub;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH' >> "\$ENV"
+
           # Settings from GitHub variables: replaced on every deploy.
-          for kv in CAMPUSHUB_DEMO_DATA=$DEMO_DATA CAMPUSHUB_COOKIE_SECURE=$COOKIE_SECURE; do
-            sed -i "/^\${kv%%=*}=/d" "\$ENV"
-            echo "\$kv" >> "\$ENV"
-          done
-          # H2 database file; survives deploys (only app.jar is replaced).
+          put CAMPUSHUB_DEMO_DATA '$DEMO_DATA'
+          put CAMPUSHUB_COOKIE_SECURE '$COOKIE_SECURE'
+          put CAMPUSHUB_DB_URL '$DB_URL'
+          put CAMPUSHUB_DB_USERNAME '$DB_USERNAME'
+          # The DB password is read here, on the instance, from SSM Parameter Store (SecureString),
+          # so it is never part of this command. No parameter configured -> no password (H2).
+          sed -i '/^CAMPUSHUB_DB_PASSWORD=/d' "\$ENV"
+          if [ -n '$DB_PASSWORD_PARAMETER' ]; then
+            PW=\$(aws ssm get-parameter --name '$DB_PASSWORD_PARAMETER' --with-decryption \
+              --region '$AWS_REGION' --query Parameter.Value --output text)
+            # systemd EnvironmentFile: double quotes, with \ and " escaped.
+            printf 'CAMPUSHUB_DB_PASSWORD="%s"\n' "\$(printf '%s' "\$PW" | sed 's/[\\\\"]/\\\\&/g')" >> "\$ENV"
+          fi
+
+          # H2 database file; survives deploys (only app.jar is replaced). Harmless when using RDS.
           mkdir -p /opt/campushub/data
           chown campushub:campushub /opt/campushub/data
           chmod 700 /opt/campushub/data

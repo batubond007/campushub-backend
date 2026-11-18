@@ -56,6 +56,17 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- PostgreSQL (e.g. AWS RDS): only used when CAMPUSHUB_DB_URL is a jdbc:postgresql URL -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<!-- Spring Security + JWT access tokens (signed and checked with Nimbus, HS256) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

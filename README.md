@@ -51,9 +51,36 @@ which the deploy workflow (`.github/workflows/deploy.yml`) keeps up to date. Not
 | Variable | Default | On the server |
 |---|---|---|
 | `CAMPUSHUB_JWT_SECRET` | dev-only value | Access-token signing key. **Generated once on the instance** by the first deploy (`openssl rand`), kept afterwards; it never goes through GitHub or the SSM command history. |
-| `CAMPUSHUB_DB_URL` | `./data/campushub` | Set by the deploy to `/opt/campushub/data/campushub` (kept across deploys). |
+| `CAMPUSHUB_DB_URL` | `./data/campushub` | From the GitHub variable `CAMPUSHUB_DB_URL`; default: H2 file `/opt/campushub/data/campushub`. See "Database". |
+| `CAMPUSHUB_DB_USERNAME` | `sa` | From the GitHub variable `CAMPUSHUB_DB_USERNAME` (default `sa`, for H2). |
+| `CAMPUSHUB_DB_PASSWORD` | empty | Read **on the instance** from the SSM parameter named in the GitHub variable `CAMPUSHUB_DB_PASSWORD_PARAMETER`; no parameter = no password (H2). |
 | `CAMPUSHUB_DEMO_DATA` | `true` | From the GitHub variable `CAMPUSHUB_DEMO_DATA` (`true`/`false`, default `true`). |
 | `CAMPUSHUB_COOKIE_SECURE` | `false` | From the GitHub variable `CAMPUSHUB_COOKIE_SECURE`; set `true` once the site has HTTPS. |
 | `CAMPUSHUB_OTP_FIXED_CODE` | `123456` | Every verification code is this; set it in `app.env` (empty value) for random codes. |
 
 To rotate the JWT secret (logs everyone out): delete its line from `app.env` and deploy again.
+
+## Database
+Default: H2 in a file on the instance. The schema comes from Flyway migrations written in PostgreSQL-compatible
+SQL, and the PostgreSQL driver is already included, so switching to **AWS RDS PostgreSQL** is configuration only:
+
+1. **RDS:** create a PostgreSQL instance in the same region/VPC, database name `campushub`. In its security group
+   allow port 5432 **only from the EC2 instance's security group** (no public access).
+2. **Password:** Systems Manager → Parameter Store → create `/campushub/db-password`, type **SecureString**.
+   The EC2 instance role needs `ssm:GetParameter` on that parameter (and `kms:Decrypt` if you use your own KMS key):
+   ```json
+   { "Effect": "Allow", "Action": "ssm:GetParameter",
+     "Resource": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/campushub/db-password" }
+   ```
+   The password is read by the instance during the deploy, so it never appears in GitHub or in the SSM command history.
+3. **GitHub variables** (backend repo, Settings → Secrets and variables → Actions → Variables):
+   | Variable | Example |
+   |---|---|
+   | `CAMPUSHUB_DB_URL` | `jdbc:postgresql://<endpoint>.rds.amazonaws.com:5432/campushub?sslmode=require` |
+   | `CAMPUSHUB_DB_USERNAME` | `campushub` |
+   | `CAMPUSHUB_DB_PASSWORD_PARAMETER` | `/campushub/db-password` |
+4. **Deploy** (push to `main` or run the workflow by hand). Flyway creates the tables on the empty database;
+   with demo data on, the demo accounts and events are created too.
+
+Data in the old H2 file is **not** copied over; the file stays in `/opt/campushub/data`. Removing the three
+variables switches back to it.
