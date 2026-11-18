@@ -60,3 +60,6 @@ build/
 ### Claude Code ###
 .claude/
 CLAUDE.local.md
+
+# Local H2 database file (see application.properties)
+/data/
