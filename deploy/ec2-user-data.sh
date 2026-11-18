@@ -16,8 +16,10 @@ dnf install -y java-21-amazon-corretto-headless nginx
 
 # --- Backend (systemd service; app.jar is uploaded by the backend deploy workflow) ---
 useradd --system --home /opt/campushub --shell /sbin/nologin campushub
-mkdir -p /opt/campushub
-chown campushub:campushub /opt/campushub
+# data/ holds the H2 database file; it survives deploys (only app.jar is replaced).
+mkdir -p /opt/campushub/data
+chown -R campushub:campushub /opt/campushub
+chmod 700 /opt/campushub/data
 
 # Read by systemd as root, so it can stay root-only. Put DB passwords etc. here later.
 cat > /opt/campushub/app.env <<'EOF'
@@ -26,7 +28,11 @@ SERVER_ADDRESS=127.0.0.1
 JAVA_TOOL_OPTIONS="-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError"
 # Default is 200 threads; plenty fewer are needed at this traffic level and each costs memory.
 SERVER_TOMCAT_THREADS_MAX=50
+# H2 database file (see application.properties).
+CAMPUSHUB_DB_URL=jdbc:h2:file:/opt/campushub/data/campushub;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
 EOF
+# Access-token signing key: random, generated once on this instance, never in git.
+echo "CAMPUSHUB_JWT_SECRET=$(openssl rand -base64 48)" >> /opt/campushub/app.env
 chmod 600 /opt/campushub/app.env
 
 cat > /etc/systemd/system/campushub.service <<'EOF'
