@@ -3,6 +3,7 @@ package com.campushub.config;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -42,6 +43,8 @@ public class SecurityConfig {
 			.sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests((requests) -> requests
 				.requestMatchers("/api/auth/**", "/api/hello", "/actuator/health", "/error").permitAll()
+				// Checked here (before the body is read and validated) and again with @PreAuthorize in EventService.
+				.requestMatchers(HttpMethod.POST, "/api/events").hasRole("UNIVERSITY_ADMIN")
 				.anyRequest().authenticated())
 			.oauth2ResourceServer((oauth2) -> oauth2
 				.jwt((jwt) -> jwt.jwtAuthenticationConverter(roleClaimConverter()))
