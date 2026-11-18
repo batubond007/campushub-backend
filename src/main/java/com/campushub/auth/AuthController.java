@@ -14,14 +14,32 @@ public class AuthController {
 
 	private final RegistrationService registration;
 
-	public AuthController(RegistrationService registration) {
+	private final VerificationService verification;
+
+	public AuthController(RegistrationService registration, VerificationService verification) {
 		this.registration = registration;
+		this.verification = verification;
 	}
 
 	/** US-01. Errors: VALIDATION_FAILED, EMAIL_DOMAIN_NOT_ALLOWED, EMAIL_TAKEN (409), OTP_COOLDOWN (429). */
 	@PostMapping("/register")
 	public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
 		return registration.register(request);
+	}
+
+	/**
+	 * US-02. Errors: VALIDATION_FAILED (fieldErrors.code), SIGNUP_NOT_FOUND, ALREADY_VERIFIED (409),
+	 * OTP_NOT_FOUND, OTP_EXPIRED, OTP_INVALID, OTP_TOO_MANY_ATTEMPTS.
+	 */
+	@PostMapping("/verify")
+	public MessageResponse verify(@Valid @RequestBody VerifyRequest request) {
+		return verification.verify(request);
+	}
+
+	/** US-02. Errors: SIGNUP_NOT_FOUND, ALREADY_VERIFIED (409), OTP_COOLDOWN (429). */
+	@PostMapping("/resend-otp")
+	public MessageResponse resendCode(@Valid @RequestBody ResendCodeRequest request) {
+		return verification.resend(request);
 	}
 
 }

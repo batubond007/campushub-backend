@@ -70,6 +70,40 @@ public class OtpService {
 	}
 
 	/**
+	 * Checks a code typed by the student; on success the code is used up.
+	 * <p>
+	 * A wrong code still counts as an attempt, so this must not roll back on {@link ApiException}
+	 * (callers use {@code @Transactional(noRollbackFor = ApiException.class)} too).
+	 *
+	 * @throws ApiException OTP_NOT_FOUND, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS or OTP_INVALID ("Attempts left: N")
+	 */
+	@Transactional(noRollbackFor = ApiException.class)
+	public void check(User user, String code) {
+		OtpCode otp = codes.findById(user.getId())
+			.orElseThrow(() -> new ApiException(ErrorCode.OTP_NOT_FOUND, "There is no active code. Please request a new one."));
+		if (clock.instant().isAfter(otp.getExpiresAt())) {
+			throw new ApiException(ErrorCode.OTP_EXPIRED, "This code has expired. Please request a new one.");
+		}
+		if (otp.getAttempts() >= settings.maxAttempts()) {
+			throw tooManyAttempts();
+		}
+		if (!MessageDigest.isEqual(hash(code).getBytes(StandardCharsets.UTF_8),
+				otp.getCodeHash().getBytes(StandardCharsets.UTF_8))) {
+			otp.addAttempt();
+			int left = settings.maxAttempts() - otp.getAttempts();
+			if (left <= 0) {
+				throw tooManyAttempts();
+			}
+			throw new ApiException(ErrorCode.OTP_INVALID, "The code is not correct. Attempts left: " + left + ".");
+		}
+		codes.delete(otp);
+	}
+
+	private static ApiException tooManyAttempts() {
+		return new ApiException(ErrorCode.OTP_TOO_MANY_ATTEMPTS, "Too many wrong attempts. Please request a new code.");
+	}
+
+	/**
 	 * Demo data only: gives an account a code that never expires and can be re-sent at once
 	 * (like the mock's "burak" account), without sending anything.
 	 */
