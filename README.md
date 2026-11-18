@@ -45,12 +45,15 @@ The frontend (`campushub-frontend`) defines the contract this API follows:
 - Roles and paging — frontend README "Roles" and "Paging".
 
 ## Settings
-`src/main/resources/application.properties`; on the server they come from `/opt/campushub/app.env`:
+`src/main/resources/application.properties`; on the server they come from `/opt/campushub/app.env`,
+which the deploy workflow (`.github/workflows/deploy.yml`) keeps up to date. Nothing has to be set by hand:
 
-| Variable | Default | Purpose |
+| Variable | Default | On the server |
 |---|---|---|
-| `CAMPUSHUB_JWT_SECRET` | dev-only value | Access-token signing key (32+ bytes). **Must be set on the server.** |
-| `CAMPUSHUB_DB_URL` | `./data/campushub` | H2 database file |
-| `CAMPUSHUB_DEMO_DATA` | `true` | Create the demo accounts and events |
-| `CAMPUSHUB_OTP_FIXED_CODE` | `123456` | Every verification code is this; empty = random codes |
-| `CAMPUSHUB_COOKIE_SECURE` | `false` | `Secure` flag on the refresh cookie; set `true` once the site has HTTPS |
+| `CAMPUSHUB_JWT_SECRET` | dev-only value | Access-token signing key. **Generated once on the instance** by the first deploy (`openssl rand`), kept afterwards; it never goes through GitHub or the SSM command history. |
+| `CAMPUSHUB_DB_URL` | `./data/campushub` | Set by the deploy to `/opt/campushub/data/campushub` (kept across deploys). |
+| `CAMPUSHUB_DEMO_DATA` | `true` | From the GitHub variable `CAMPUSHUB_DEMO_DATA` (`true`/`false`, default `true`). |
+| `CAMPUSHUB_COOKIE_SECURE` | `false` | From the GitHub variable `CAMPUSHUB_COOKIE_SECURE`; set `true` once the site has HTTPS. |
+| `CAMPUSHUB_OTP_FIXED_CODE` | `123456` | Every verification code is this; set it in `app.env` (empty value) for random codes. |
+
+To rotate the JWT secret (logs everyone out): delete its line from `app.env` and deploy again.
