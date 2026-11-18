@@ -15,7 +15,25 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  */
 @ConfigurationProperties("campushub")
 public record CampushubProperties(@DefaultValue Jwt jwt, @DefaultValue("metu.edu.tr") List<String> allowedDomains,
-		@DefaultValue Otp otp, @DefaultValue DemoData demoData) {
+		@DefaultValue Otp otp, @DefaultValue DemoData demoData, @DefaultValue Auth auth) {
+
+	/**
+	 * Sessions (US-03): a short-lived access token in the response body, and a long-lived refresh token in an
+	 * httpOnly cookie that JavaScript cannot read.
+	 *
+	 * @param refreshTokenTtl how long a session lasts without logging in again
+	 * @param refreshCookie the cookie that carries the refresh token
+	 */
+	public record Auth(@DefaultValue("7d") Duration refreshTokenTtl, @DefaultValue RefreshCookie refreshCookie) {
+	}
+
+	/**
+	 * @param secure only send the cookie over HTTPS. Must stay {@code false} while the site is served over plain
+	 * HTTP (browsers drop Secure cookies there, so every reload would log the student out); turn on with HTTPS.
+	 */
+	public record RefreshCookie(@DefaultValue("campushub_refresh") String name, @DefaultValue("/api/auth") String path,
+			@DefaultValue("false") boolean secure) {
+	}
 
 	/**
 	 * @param secret HMAC key for signing access tokens (HS256), at least 32 bytes; set {@code CAMPUSHUB_JWT_SECRET} in production
