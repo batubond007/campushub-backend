@@ -43,6 +43,22 @@ public class EventService {
 	}
 
 	/**
+	 * US-06: one event, also after it has ended ({@code ended = true}), so old links still open.
+	 *
+	 * @throws ApiException NOT_FOUND when there is no such event
+	 */
+	@Transactional(readOnly = true)
+	public EventDetail detail(long id) {
+		return events.findById(id)
+			.map((event) -> EventDetail.of(event, clock.instant()))
+			.orElseThrow(EventService::notFound);
+	}
+
+	static ApiException notFound() {
+		return Problems.notFound("This event could not be found. It may have been removed.");
+	}
+
+	/**
 	 * COD-118: a University Admin creates an official event. The role is also checked per URL in SecurityConfig,
 	 * so other roles get 403 before their body is even validated (same order as the frontend mock).
 	 */
