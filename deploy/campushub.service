@@ -2,6 +2,8 @@
 Description=CampusHub Backend
 After=network-online.target
 Wants=network-online.target
+# Don't crash-loop before the first deploy has uploaded the jar.
+ConditionPathExists=/opt/campushub/app.jar
 
 [Service]
 User=campushub
