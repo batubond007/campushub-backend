@@ -15,7 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
-import com.campushub.common.error.Problems;
+import com.campushub.exception.Problems;
 
 /**
  * Stateless API security:

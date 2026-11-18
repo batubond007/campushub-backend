@@ -12,12 +12,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.campushub.auth.otp.OtpService;
-import com.campushub.event.EventRepository;
-import com.campushub.user.AccountStatus;
-import com.campushub.user.Role;
-import com.campushub.user.User;
-import com.campushub.user.UserRepository;
+import com.campushub.model.AccountStatus;
+import com.campushub.model.Role;
+import com.campushub.model.User;
+import com.campushub.repository.EventRepository;
+import com.campushub.repository.UserRepository;
+import com.campushub.service.OtpService;
 
 /**
  * Ready-made accounts and events for trying the app, the same as the frontend mock (password {@code Demo1234}).

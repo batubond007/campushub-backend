@@ -8,7 +8,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.campushub.event.Event;
+import com.campushub.model.Event;
 
 /**
  * The frontend mock's events (mock/eventsMock.ts), placed a few days from today at sensible ODTÜ times:

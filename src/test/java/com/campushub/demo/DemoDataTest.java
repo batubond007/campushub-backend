@@ -9,12 +9,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import com.campushub.auth.otp.OtpCodeRepository;
-import com.campushub.event.EventRepository;
-import com.campushub.user.AccountStatus;
-import com.campushub.user.Role;
-import com.campushub.user.User;
-import com.campushub.user.UserRepository;
+import com.campushub.model.AccountStatus;
+import com.campushub.model.Role;
+import com.campushub.model.User;
+import com.campushub.repository.EventRepository;
+import com.campushub.repository.OtpCodeRepository;
+import com.campushub.repository.UserRepository;
 
 @SpringBootTest(properties = "campushub.demo-data.enabled=true")
 class DemoDataTest {
