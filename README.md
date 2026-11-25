@@ -9,7 +9,8 @@ Spring Boot 4.1 (Java 21) REST API for the CampusHub frontend. Everything is und
 ```
 Demo accounts are created on start-up (password `Demo1234`): `ayse.yilmaz@metu.edu.tr` (student),
 `burak.celik@metu.edu.tr` (not verified yet), `zeynep.demir@metu.edu.tr` (University Admin).
-No e-mail is sent: verification codes are written to the log and `123456` always works.
+By default no e-mail is sent: verification codes are written to the log and `123456` always works
+(to send real e-mails see "E-mail").
 The frontend's `npm run dev` proxies `/api` to this server.
 
 Deployment (EC2 + nginx, GitHub Actions): see [`deploy/README.md`](deploy/README.md).
@@ -56,9 +57,32 @@ which the deploy workflow (`.github/workflows/deploy.yml`) keeps up to date. Not
 | `CAMPUSHUB_DB_PASSWORD` | empty | Read **on the instance** from the SSM parameter named in the GitHub variable `CAMPUSHUB_DB_PASSWORD_PARAMETER`; no parameter = no password (H2). |
 | `CAMPUSHUB_DEMO_DATA` | `true` | From the GitHub variable `CAMPUSHUB_DEMO_DATA` (`true`/`false`, default `true`). |
 | `CAMPUSHUB_COOKIE_SECURE` | `false` | From the GitHub variable `CAMPUSHUB_COOKIE_SECURE`; set `true` once the site has HTTPS. |
-| `CAMPUSHUB_OTP_FIXED_CODE` | `123456` | Every verification code is this; set it in `app.env` (empty value) for random codes. |
+| `CAMPUSHUB_OTP_FIXED_CODE` | `123456` | Every verification code is this; set it in `app.env` (empty value) for random codes. Set to empty automatically when mail is on. |
+| `CAMPUSHUB_MAIL_ENABLED` | `false` | From the GitHub variable `CAMPUSHUB_MAIL_ENABLED`. `true` = codes are e-mailed (Brevo), see "E-mail". |
+| `CAMPUSHUB_MAIL_USERNAME` | empty | From the GitHub variable `CAMPUSHUB_MAIL_USERNAME`: the Brevo SMTP login (`xxxx@smtp-brevo.com`). |
+| `CAMPUSHUB_MAIL_FROM` | empty | From the GitHub variable `CAMPUSHUB_MAIL_FROM`: a sender address verified in Brevo. |
+| `CAMPUSHUB_MAIL_PASSWORD` | empty | Brevo SMTP key, read **on the instance** from the SSM parameter named in `CAMPUSHUB_MAIL_PASSWORD_PARAMETER`. |
 
 To rotate the JWT secret (logs everyone out): delete its line from `app.env` and deploy again.
+
+## E-mail
+Verification codes are sent over SMTP with [Brevo](https://www.brevo.com) (free plan: 300 e-mails/day, no domain
+needed). Off by default; then `LoggingOtpSender` only writes codes to the log. With `campushub.mail.enabled=true`
+`MailOtpSender` sends them; if sending fails the request returns `INTERNAL_ERROR` and nothing is saved, so the
+student can just try again.
+
+1. **Brevo:** create a free account. *Senders, Domains & Dedicated IPs → Senders*: add and confirm the address
+   e-mails should come from. Note: with a free-mail sender (e.g. Gmail) Brevo may show a `…@…brevosend.com`
+   address as the sender instead; the display name stays "CampusHub".
+2. **SMTP key:** *SMTP & API → SMTP*: note the **login** (`xxxx@smtp-brevo.com`) and generate an **SMTP key**.
+3. **Key in AWS:** Systems Manager → Parameter Store → create `/campushub/mail-password`, type **SecureString**,
+   value = the SMTP key. Allow the EC2 instance role `ssm:GetParameter` on it (same as the DB password, see below).
+4. **GitHub variables** (Settings → Secrets and variables → Actions → Variables): `CAMPUSHUB_MAIL_ENABLED=true`,
+   `CAMPUSHUB_MAIL_USERNAME=<login>`, `CAMPUSHUB_MAIL_FROM=<verified sender>`,
+   `CAMPUSHUB_MAIL_PASSWORD_PARAMETER=/campushub/mail-password`. Deploy again. Codes are then random.
+
+Locally, set the same `CAMPUSHUB_MAIL_*` environment variables (with `CAMPUSHUB_MAIL_PASSWORD=<key>` directly)
+and `CAMPUSHUB_OTP_FIXED_CODE=` (empty) before `./mvnw spring-boot:run`.
 
 ## Database
 Default: H2 in a file on the instance. The schema comes from Flyway migrations written in PostgreSQL-compatible

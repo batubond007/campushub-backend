@@ -15,7 +15,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  */
 @ConfigurationProperties("campushub")
 public record CampushubProperties(@DefaultValue Jwt jwt, @DefaultValue("metu.edu.tr") List<String> allowedDomains,
-		@DefaultValue Otp otp, @DefaultValue DemoData demoData, @DefaultValue Auth auth) {
+		@DefaultValue Otp otp, @DefaultValue Mail mail, @DefaultValue DemoData demoData, @DefaultValue Auth auth) {
 
 	/**
 	 * Sessions (US-03): a short-lived access token in the response body, and a long-lived refresh token in an
@@ -58,6 +58,17 @@ public record CampushubProperties(@DefaultValue Jwt jwt, @DefaultValue("metu.edu
 			return fixedCode != null && !fixedCode.isBlank();
 		}
 
+	}
+
+	/**
+	 * Sending e-mail over SMTP (server settings are {@code spring.mail.*}).
+	 *
+	 * @param enabled send verification codes by e-mail; when off they are only written to the log
+	 * @param from sender address, must be a verified sender in Brevo
+	 * @param fromName name shown as the sender
+	 */
+	public record Mail(@DefaultValue("false") boolean enabled, @Nullable String from,
+			@DefaultValue("CampusHub") String fromName) {
 	}
 
 	/** @param enabled create the ready-made demo accounts (and later demo events) on start-up */
