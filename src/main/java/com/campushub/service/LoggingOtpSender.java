@@ -4,13 +4,15 @@ import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * No e-mail yet: the code is written to the server log (and with {@code campushub.otp.fixed-code} it is always
- * the same, e.g. 123456). Replace with a mail-based {@link OtpSender} when e-mail is set up.
+ * Used while e-mail is off ({@code campushub.mail.enabled=false}, the default): the code is written to the server
+ * log (and with {@code campushub.otp.fixed-code} it is always the same, e.g. 123456). See {@link MailOtpSender}.
  */
 @Component
+@ConditionalOnProperty(name = "campushub.mail.enabled", havingValue = "false", matchIfMissing = true)
 class LoggingOtpSender implements OtpSender {
 
 	private static final Logger log = LoggerFactory.getLogger(LoggingOtpSender.class);

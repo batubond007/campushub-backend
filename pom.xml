@@ -42,6 +42,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
+		<!-- E-mail (verification codes) over SMTP, e.g. Brevo; only used when campushub.mail.enabled=true -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
 		<!-- Database: H2 in a file, schema managed by Flyway migrations (src/main/resources/db/migration) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

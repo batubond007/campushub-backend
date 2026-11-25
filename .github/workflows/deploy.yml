@@ -28,6 +28,13 @@ env:
   DB_URL: ${{ vars.CAMPUSHUB_DB_URL || 'jdbc:h2:file:/opt/campushub/data/campushub;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH' }}
   DB_USERNAME: ${{ vars.CAMPUSHUB_DB_USERNAME || 'sa' }}
   DB_PASSWORD_PARAMETER: ${{ vars.CAMPUSHUB_DB_PASSWORD_PARAMETER }}
+  # E-mail (Brevo SMTP), see README "E-mail". Off by default (codes only in the log, fixed code 123456).
+  # When CAMPUSHUB_MAIL_ENABLED=true: CAMPUSHUB_MAIL_USERNAME (Brevo SMTP login), CAMPUSHUB_MAIL_FROM (verified
+  # sender) and CAMPUSHUB_MAIL_PASSWORD_PARAMETER (SSM SecureString holding the SMTP key, read by the instance).
+  MAIL_ENABLED: ${{ vars.CAMPUSHUB_MAIL_ENABLED || 'false' }}
+  MAIL_USERNAME: ${{ vars.CAMPUSHUB_MAIL_USERNAME }}
+  MAIL_FROM: ${{ vars.CAMPUSHUB_MAIL_FROM }}
+  MAIL_PASSWORD_PARAMETER: ${{ vars.CAMPUSHUB_MAIL_PASSWORD_PARAMETER }}
 
 jobs:
   deploy:
@@ -61,13 +68,19 @@ jobs:
         run: |
           # The settings end up inside a shell script: only accept safe characters.
           fail() { echo "Invalid GitHub variable $1: $2"; exit 1; }
-          for v in DEMO_DATA COOKIE_SECURE; do
+          for v in DEMO_DATA COOKIE_SECURE MAIL_ENABLED; do
             case "${!v}" in true|false) ;; *) fail "CAMPUSHUB_$v" "must be true or false" ;; esac
           done
           [[ "$DB_URL" =~ ^jdbc:[A-Za-z0-9:/._\;=@?\&%+,-]+$ ]] || fail CAMPUSHUB_DB_URL "must be a jdbc: URL without quotes, spaces or \$"
           [[ "$DB_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]] || fail CAMPUSHUB_DB_USERNAME "letters, digits, _ . - only"
           [[ -z "$DB_PASSWORD_PARAMETER" || "$DB_PASSWORD_PARAMETER" =~ ^/?[A-Za-z0-9_./-]+$ ]] \
             || fail CAMPUSHUB_DB_PASSWORD_PARAMETER "must be an SSM parameter name like /campushub/db-password"
+          if [ "$MAIL_ENABLED" = true ]; then
+            [[ "$MAIL_USERNAME" =~ ^[A-Za-z0-9_.+@-]+$ ]] || fail CAMPUSHUB_MAIL_USERNAME "the Brevo SMTP login, e.g. 1a2b3c@smtp-brevo.com"
+            [[ "$MAIL_FROM" =~ ^[A-Za-z0-9_.+-]+@[A-Za-z0-9.-]+$ ]] || fail CAMPUSHUB_MAIL_FROM "a plain e-mail address (a sender verified in Brevo)"
+            [[ "$MAIL_PASSWORD_PARAMETER" =~ ^/?[A-Za-z0-9_./-]+$ ]] \
+              || fail CAMPUSHUB_MAIL_PASSWORD_PARAMETER "must be an SSM parameter name like /campushub/mail-password"
+          fi
 
           # Script executed on the instance as root.
           cat > remote.sh <<EOF
@@ -96,6 +109,19 @@ jobs:
               --region '$AWS_REGION' --query Parameter.Value --output text)
             # systemd EnvironmentFile: double quotes, with \ and " escaped.
             printf 'CAMPUSHUB_DB_PASSWORD="%s"\n' "\$(printf '%s' "\$PW" | sed 's/[\\\\"]/\\\\&/g')" >> "\$ENV"
+          fi
+
+          # E-mail: the SMTP key is read here, on the instance, from SSM (like the DB password).
+          # With mail on, codes are random (the fixed demo code is turned off).
+          put CAMPUSHUB_MAIL_ENABLED '$MAIL_ENABLED'
+          sed -i '/^CAMPUSHUB_MAIL_\(USERNAME\|FROM\|PASSWORD\)=/d' "\$ENV"
+          if [ '$MAIL_ENABLED' = true ]; then
+            put CAMPUSHUB_MAIL_USERNAME '$MAIL_USERNAME'
+            put CAMPUSHUB_MAIL_FROM '$MAIL_FROM'
+            put CAMPUSHUB_OTP_FIXED_CODE ''
+            KEY=\$(aws ssm get-parameter --name '$MAIL_PASSWORD_PARAMETER' --with-decryption \
+              --region '$AWS_REGION' --query Parameter.Value --output text)
+            printf 'CAMPUSHUB_MAIL_PASSWORD="%s"\n' "\$(printf '%s' "\$KEY" | sed 's/[\\\\"]/\\\\&/g')" >> "\$ENV"
           fi
 
           # H2 database file; survives deploys (only app.jar is replaced). Harmless when using RDS.
