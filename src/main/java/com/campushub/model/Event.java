@@ -61,6 +61,20 @@ public class Event {
 		this.createdAt = createdAt;
 	}
 
+	/** COD-129: replaces the editable fields; the organizer, the creator and createdAt stay the same. */
+	public void update(String title, String description, String location, Instant startTime, Instant endTime) {
+		this.title = title;
+		this.description = description;
+		this.location = location;
+		this.startTime = startTime;
+		this.endTime = endTime;
+	}
+
+	/** True once the event is over (same rule as {@code EventDetail.ended}). */
+	public boolean hasEnded(Instant now) {
+		return !now.isBefore(endTime);
+	}
+
 	public Long getId() {
 		return id;
 	}

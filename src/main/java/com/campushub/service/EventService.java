@@ -71,6 +71,51 @@ public class EventService {
 	@PreAuthorize("hasRole('UNIVERSITY_ADMIN')")
 	public CampusEvent create(long userId, CreateEventRequest request) {
 		Instant now = clock.instant();
+		checkTimes(request, now);
+
+		User organizer = users.findById(userId).orElseThrow(Problems::unauthenticated);
+		Event event = events.save(new Event(request.title().trim(), request.description().trim(),
+				request.location().trim(), request.startTime(), request.endTime(), organizer.getFullName(), true,
+				organizer.getId(), now));
+		return CampusEvent.of(event);
+	}
+
+	/**
+	 * COD-129 / US-24: a University Admin edits an event. All fields are sent again and follow the same rules as
+	 * {@link #create}; the organizer stays the original one.
+	 *
+	 * @throws ApiException NOT_FOUND when there is no such event, EVENT_ENDED (409) when it is already over,
+	 * VALIDATION_FAILED for invalid times
+	 */
+	@Transactional
+	@PreAuthorize("hasRole('UNIVERSITY_ADMIN')")
+	public EventDetail update(long id, CreateEventRequest request) {
+		Instant now = clock.instant();
+		Event event = events.findById(id).orElseThrow(EventService::notFound);
+		if (event.hasEnded(now)) {
+			throw new ApiException(ErrorCode.EVENT_ENDED, "This event has already ended and can no longer be edited.");
+		}
+		checkTimes(request, now);
+
+		event.update(request.title().trim(), request.description().trim(), request.location().trim(),
+				request.startTime(), request.endTime());
+		return EventDetail.of(events.save(event), now);
+	}
+
+	/**
+	 * COD-129 / US-24: a University Admin deletes an event; it no longer appears in the list or opens.
+	 *
+	 * @throws ApiException NOT_FOUND when there is no such event
+	 */
+	@Transactional
+	@PreAuthorize("hasRole('UNIVERSITY_ADMIN')")
+	public void delete(long id) {
+		Event event = events.findById(id).orElseThrow(EventService::notFound);
+		events.delete(event);
+	}
+
+	/** The rules for start and end time, shared by create and edit (the other fields use Bean Validation). */
+	private static void checkTimes(CreateEventRequest request, Instant now) {
 		Map<String, String> errors = new LinkedHashMap<>();
 		if (!request.startTime().isAfter(now)) {
 			errors.put("startTime", "Start time must be in the future.");
@@ -81,12 +126,6 @@ public class EventService {
 		if (!errors.isEmpty()) {
 			throw new ApiException(ErrorCode.VALIDATION_FAILED, "Please check the highlighted fields.", errors);
 		}
-
-		User organizer = users.findById(userId).orElseThrow(Problems::unauthenticated);
-		Event event = events.save(new Event(request.title().trim(), request.description().trim(),
-				request.location().trim(), request.startTime(), request.endTime(), organizer.getFullName(), true,
-				organizer.getId(), now));
-		return CampusEvent.of(event);
 	}
 
 }

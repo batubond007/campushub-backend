@@ -32,7 +32,10 @@ public enum ErrorCode {
 	OTP_EXPIRED(HttpStatus.BAD_REQUEST),
 	OTP_INVALID(HttpStatus.BAD_REQUEST),
 	OTP_TOO_MANY_ATTEMPTS(HttpStatus.BAD_REQUEST),
-	OTP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS);
+	OTP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS),
+
+	// Campus events (COD-118, COD-14, COD-129)
+	EVENT_ENDED(HttpStatus.CONFLICT);
 
 	private final HttpStatus status;
 

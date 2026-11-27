@@ -1,13 +1,17 @@
 package com.campushub.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -22,7 +26,8 @@ import com.campushub.security.CurrentUser;
 import com.campushub.service.EventService;
 
 /**
- * {@code /api/events}: every signed-in user can list events and open one; only University Admins create them
+ * {@code /api/events}: every signed-in user can list events and open one; only University Admins create, edit and
+ * delete them
  * (frontend README "Roles").
  */
 @RestController
@@ -55,20 +60,39 @@ public class EventController {
 	 */
 	@GetMapping("/{id}")
 	public EventDetail detail(@PathVariable String id) {
-		long eventId;
-		try {
-			eventId = Long.parseLong(id);
-		}
-		catch (NumberFormatException ex) {
-			throw EventService.notFound();
-		}
-		return events.detail(eventId);
+		return events.detail(eventId(id));
 	}
 
 	/** University Admins only (403 FORBIDDEN otherwise). Errors: VALIDATION_FAILED with fieldErrors. */
 	@PostMapping
 	public CampusEvent create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateEventRequest request) {
 		return events.create(CurrentUser.id(jwt), request);
+	}
+
+	/**
+	 * COD-129 / US-24: University Admins only (403 FORBIDDEN otherwise). Same body and field rules as create.
+	 * Errors: 404 NOT_FOUND, 409 EVENT_ENDED when the event is already over, VALIDATION_FAILED with fieldErrors.
+	 */
+	@PutMapping("/{id}")
+	public EventDetail update(@PathVariable String id, @Valid @RequestBody CreateEventRequest request) {
+		return events.update(eventId(id), request);
+	}
+
+	/** COD-129 / US-24: University Admins only (403 FORBIDDEN otherwise). 204 No Content; 404 NOT_FOUND. */
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void delete(@PathVariable String id) {
+		events.delete(eventId(id));
+	}
+
+	/** A non-numeric id ({@code /api/events/abc}) cannot exist, so it is a 404, not a 400. */
+	private static long eventId(String id) {
+		try {
+			return Long.parseLong(id);
+		}
+		catch (NumberFormatException ex) {
+			throw EventService.notFound();
+		}
 	}
 
 }

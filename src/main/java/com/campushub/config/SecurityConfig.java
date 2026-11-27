@@ -45,6 +45,8 @@ public class SecurityConfig {
 				.requestMatchers("/api/auth/**", "/api/hello", "/actuator/health", "/error").permitAll()
 				// Checked here (before the body is read and validated) and again with @PreAuthorize in EventService.
 				.requestMatchers(HttpMethod.POST, "/api/events").hasRole("UNIVERSITY_ADMIN")
+				.requestMatchers(HttpMethod.PUT, "/api/events/*").hasRole("UNIVERSITY_ADMIN")
+				.requestMatchers(HttpMethod.DELETE, "/api/events/*").hasRole("UNIVERSITY_ADMIN")
 				.anyRequest().authenticated())
 			.oauth2ResourceServer((oauth2) -> oauth2
 				.jwt((jwt) -> jwt.jwtAuthenticationConverter(roleClaimConverter()))
